@@ -1,0 +1,35 @@
+import 'dotenv/config';
+import express from 'express';
+import cors from 'cors';
+import http from 'node:http';
+import {Server as SocketServer} from 'socket.io';
+import rateLimit from 'express-rate-limit';
+import connectDB from './config/db.js';
+import authRoutes from './routes/auth.js';
+import movieRoutes from './routes/movies.js';
+import theatreRoutes from './routes/theatres.js';
+import showRoutes from './routes/shows.js';
+import bookingRoutes,{setBookingIO} from './routes/bookings.js';
+import notificationRoutes from './routes/notifications.js';
+import {notFound,errorHandler} from './middleware/errors.js';
+
+if(!process.env.MONGODB_URI||!process.env.JWT_SECRET){console.error('Set MONGODB_URI and JWT_SECRET in server/.env');process.exit(1);}
+const app=express();
+const server=http.createServer(app);
+const io=new SocketServer(server,{cors:{origin:process.env.CLIENT_URL||'http://localhost:5173',methods:['GET','POST']}});
+io.on('connection',socket=>{socket.on('show:join',id=>{if(typeof id==='string'&&id.length<100)socket.join(`show:${id}`);});socket.on('show:leave',id=>{if(typeof id==='string')socket.leave(`show:${id}`);});});
+setBookingIO(io);
+app.use(cors({origin:process.env.CLIENT_URL||'http://localhost:5173'}));
+app.use(express.json({limit:'1mb'}));
+app.use('/api',rateLimit({windowMs:15*60*1000,limit:300,standardHeaders:true,legacyHeaders:false}));
+app.get('/api/health',(req,res)=>res.json({status:'ok',service:'IMovies API'}));
+app.use('/api/auth',authRoutes);
+app.use('/api/movies',movieRoutes);
+app.use('/api/theatres',theatreRoutes);
+app.use('/api/shows',showRoutes);
+app.use('/api/bookings',bookingRoutes);
+app.use('/api/notifications',notificationRoutes);
+app.use(notFound);
+app.use(errorHandler);
+const port=Number(process.env.PORT)||5000;
+connectDB().then(()=>server.listen(port,()=>console.log(`IMovies API listening on ${port}`))).catch(e=>{console.error('Startup failed:',e.message);process.exit(1);});

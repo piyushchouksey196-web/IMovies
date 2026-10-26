@@ -1,0 +1,4 @@
+import axios from 'axios';
+export const api=axios.create({baseURL:import.meta.env.VITE_API_URL||'http://localhost:5000/api'});
+api.interceptors.request.use(config=>{const token=localStorage.getItem('imovies_token');if(token)config.headers.Authorization=`Bearer ${token}`;return config;});
+export function messageOf(e){return e?.response?.data?.message||e?.message||'Something went wrong.';}
